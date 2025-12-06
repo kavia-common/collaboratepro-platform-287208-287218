@@ -1,19 +1,34 @@
-const app = require('./app');
+'use strict';
 
-const PORT = process.env.PORT || 3000;
+require('dotenv').config();
+
+const { buildApp } = require('./graphqlServer');
+const { mountDocs } = require('./app');
+
+const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 
-const server = app.listen(PORT, HOST, () => {
-  console.log(`Server running at http://${HOST}:${PORT}`);
-});
+(async () => {
+  try {
+    const { app, server } = await buildApp();
+    // Mount docs on the express app
+    mountDocs(app);
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM signal received: closing HTTP server');
-    server.close(() => {
-      console.log('HTTP server closed');
-      process.exit(0);
+    server.listen(PORT, HOST, () => {
+      console.log(`HTTP/WS server running at http://${HOST}:${PORT}`);
+      console.log(`GraphQL endpoint: http://${HOST}:${PORT}/graphql`);
     });
-  });
 
-module.exports = server;
+    // Graceful shutdown
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM signal received: closing HTTP/WS server');
+      server.close(() => {
+        console.log('HTTP/WS server closed');
+        process.exit(0);
+      });
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+})();

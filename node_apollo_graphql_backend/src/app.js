@@ -1,56 +1,37 @@
-const cors = require('cors');
-const express = require('express');
-const routes = require('./routes');
+'use strict';
+
+/**
+ * This file previously assembled express app directly.
+ * The GraphQL + REST server is now initialized in graphqlServer.js to host both HTTP and WS on the same port.
+ * This module exports a function to mount API docs (swagger) on a provided app instance.
+ */
+
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('../swagger');
 
-// Initialize express app
-const app = express();
+function mountDocs(app) {
+  app.use('/docs', swaggerUi.serve, (req, res, next) => {
+    const host = req.get('host');
+    let protocol = req.protocol;
+    const actualPort = req.socket.localPort;
+    const hasPort = host.includes(':');
+    const needsPort =
+      !hasPort &&
+      ((protocol === 'http' && actualPort !== 80) ||
+        (protocol === 'https' && actualPort !== 443));
+    const fullHost = needsPort ? `${host}:${actualPort}` : host;
+    protocol = req.secure ? 'https' : protocol;
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-app.set('trust proxy', true);
-app.use('/docs', swaggerUi.serve, (req, res, next) => {
-  const host = req.get('host');           // may or may not include port
-  let protocol = req.protocol;          // http or https
-
-  const actualPort = req.socket.localPort;
-  const hasPort = host.includes(':');
-  
-  const needsPort =
-    !hasPort &&
-    ((protocol === 'http' && actualPort !== 80) ||
-     (protocol === 'https' && actualPort !== 443));
-  const fullHost = needsPort ? `${host}:${actualPort}` : host;
-  protocol = req.secure ? 'https' : protocol;
-
-  const dynamicSpec = {
-    ...swaggerSpec,
-    servers: [
-      {
-        url: `${protocol}://${fullHost}`,
-      },
-    ],
-  };
-  swaggerUi.setup(dynamicSpec)(req, res, next);
-});
-
-// Parse JSON request body
-app.use(express.json());
-
-// Mount routes
-app.use('/', routes);
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    status: 'error',
-    message: 'Internal Server Error',
+    const dynamicSpec = {
+      ...swaggerSpec,
+      servers: [
+        {
+          url: `${protocol}://${fullHost}`,
+        },
+      ],
+    };
+    swaggerUi.setup(dynamicSpec)(req, res, next);
   });
-});
+}
 
-module.exports = app;
+module.exports = { mountDocs };
