@@ -1,0 +1,4 @@
+{
+    "command": "npm install && node generate_openapi.js",
+    "working_directory": "/home/kavia/workspace/code-generation/collaboratepro-platform-287208-287218/node_apollo_graphql_backend"
+}
