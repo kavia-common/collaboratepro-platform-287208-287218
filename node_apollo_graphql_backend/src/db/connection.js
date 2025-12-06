@@ -5,11 +5,19 @@ const path = require('path');
 const mongoose = require('mongoose');
 
 /**
- * Resolve MongoDB connection URI using the following precedence:
- * 1) process.env.MONGODB_URL
- * 2) First non-empty, non-comment line from ../mongodb_atlas_database/db_connection.txt (relative to repo root)
- *    The file may contain either a bare mongodb URI or a 'mongosh <connection-string>' line
- * 3) Fallback: mongodb://127.0.0.1:27017/collaboratepro
+ * Resolve MongoDB connection URI using the following precedence (do not change behavior):
+ * 1) process.env.MONGODB_URL (if defined and non-empty)
+ * 2) First non-empty, non-comment line from the database container's db_connection.txt.
+ *    - Expected path (relative to this backend file):
+ *      <repo-root>/collaboratepro-platform-287208-287217/mongodb_atlas_database/db_connection.txt
+ *    - The file may contain either:
+ *        a) a bare mongodb URI (e.g., "mongodb+srv://..."), or
+ *        b) a line starting with "mongosh " followed by the mongodb URI (e.g., "mongosh mongodb+srv://...")
+ *      In case (b), we extract the first token that starts with "mongodb".
+ * 3) Fallback to local default: mongodb://127.0.0.1:27017/collaboratepro
+ *
+ * Notes:
+ * - This preserves existing behavior and simply clarifies the path math and precedence.
  */
 function resolveMongoUri() {
   // 1) Env
@@ -17,15 +25,16 @@ function resolveMongoUri() {
     return process.env.MONGODB_URL.trim();
   }
 
-  // 2) db_connection.txt relative to repo root
-  // This file lives at: <repo-root>/collaboratepro-platform-287208-287217/mongodb_atlas_database/db_connection.txt
-  // Backend root is: <repo-root>/collaboratepro-platform-287208-287218/node_apollo_graphql_backend
-  // So go up two levels, then into the db container folder.
+  // 2) db_connection.txt relative to the backend root:
+  // Backend root: <repo-root>/collaboratepro-platform-287208-287218/node_apollo_graphql_backend
+  // We navigate up to: <repo-root>/collaboratepro-platform-287208-287218
+  // Then up again to: <repo-root>
+  // Then into sibling db container folder: collaboratepro-platform-287208-287217/mongodb_atlas_database/db_connection.txt
   const backendRoot = path.join(__dirname, '..', '..');
-  const repoRoot = path.join(backendRoot, '..'); // go up to collaboratepro-platform-287208-287218
+  const repoRoot = path.join(backendRoot, '..'); // -> <repo-root>/collaboratepro-platform-287208-287218
   const dbConnPath = path.join(
     repoRoot,
-    '..', // up to repo base
+    '..', // -> <repo-root>
     'collaboratepro-platform-287208-287217',
     'mongodb_atlas_database',
     'db_connection.txt'
@@ -40,10 +49,9 @@ function resolveMongoUri() {
         .filter((l) => l && !l.startsWith('#'));
 
       if (lines.length > 0) {
-        // Some environments store as "mongosh <uri>", so extract the URI part
         const first = lines[0];
+        // Support "mongosh <uri>" or direct "mongodb+srv://..."
         if (first.startsWith('mongosh')) {
-          // Split by space and take last token that starts with mongodb
           const parts = first.split(/\s+/);
           const potential = parts.find((p) => p.startsWith('mongodb'));
           if (potential) return potential;
